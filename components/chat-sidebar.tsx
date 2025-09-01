@@ -12,8 +12,6 @@ import {
   ChevronsUpDown,
   Copy,
   Pencil,
-  Github,
-  Key,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,9 +31,8 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import Image from "next/image";
 import { MCPServerManager } from "./mcp-server-manager";
-import { ApiKeyManager } from "./api-key-manager";
+
 import { ThemeToggle } from "./theme-toggle";
 import { getUserId, updateUserId } from "@/lib/user-id";
 import { useChats } from "@/lib/hooks/use-chats";
@@ -70,7 +67,7 @@ export function ChatSidebar() {
   const pathname = usePathname();
   const [userId, setUserId] = useState<string>("");
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
-  const [apiKeySettingsOpen, setApiKeySettingsOpen] = useState(false);
+
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [editUserIdOpen, setEditUserIdOpen] = useState(false);
@@ -165,29 +162,17 @@ export function ChatSidebar() {
       <SidebarHeader className="p-4 border-b border-border/40">
         <div className="flex items-center justify-start">
           <div
-            className={`flex items-center gap-2 ${
+            className={`flex items-center ${
               isCollapsed ? "justify-center w-full" : ""
             }`}
           >
-            <div
-              className={`relative rounded-full bg-primary/70 flex items-center justify-center ${
-                isCollapsed ? "size-5 p-3" : "size-6"
-              }`}
-            >
-              <Image
-                src="/scira.png"
-                alt="Scira Logo"
-                width={24}
-                height={24}
-                className="absolute transform scale-75"
-                unoptimized
-                quality={100}
-              />
-            </div>
             {!isCollapsed && (
               <div className="font-semibold text-lg text-foreground/90">
-                MCP
+                Rarible MCP
               </div>
+            )}
+            {isCollapsed && (
+              <div className="font-semibold text-sm text-foreground/90">R</div>
             )}
           </div>
         </div>
@@ -474,24 +459,7 @@ export function ChatSidebar() {
                   <Settings className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
                   MCP Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setApiKeySettingsOpen(true);
-                  }}
-                >
-                  <Key className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  API Keys
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    window.open("https://git.new/s-mcp", "_blank");
-                  }}
-                >
-                  <Github className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  GitHub
-                </DropdownMenuItem>
+
                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center">
@@ -513,11 +481,6 @@ export function ChatSidebar() {
           onSelectedServersChange={setSelectedMcpServers}
           open={mcpSettingsOpen}
           onOpenChange={setMcpSettingsOpen}
-        />
-
-        <ApiKeyManager
-          open={apiKeySettingsOpen}
-          onOpenChange={setApiKeySettingsOpen}
         />
       </SidebarFooter>
 
