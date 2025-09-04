@@ -190,7 +190,8 @@ const PurePreviewMessage = ({
                   ) ||
                     part.text.includes("**Name**:") ||
                     part.text.includes("**Collection**:") ||
-                    part.text.includes("ipfs.raribleuserdata.com"));
+                    part.text.includes("ipfs.raribleuserdata.com") ||
+                    part.text.includes("googleusercontent.com"));
 
                 return (
                   <div

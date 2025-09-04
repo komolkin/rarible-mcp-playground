@@ -70,17 +70,29 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   // Add timeout for image loading
   useEffect(() => {
     if (nft.image) {
+      console.log(
+        "🖼️ Setting up image loading timeout for:",
+        nft.image?.substring(0, 100) + "..."
+      );
       const timeout = setTimeout(() => {
         if (imageLoading) {
-          console.log("Image loading timeout:", nft.image);
+          console.log(
+            "⏰ Image loading timeout reached:",
+            nft.image?.substring(0, 100) + "..."
+          );
           setImageLoading(false);
           setImageError(true);
         }
       }, 10000); // 10 second timeout
 
       return () => clearTimeout(timeout);
+    } else {
+      // No image URL provided - stop loading immediately
+      console.log("❌ No image URL provided, stopping loading state");
+      setImageLoading(false);
+      setImageError(true);
     }
-  }, [nft.image, imageLoading]);
+  }, [nft.image]);
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(nft.id);
@@ -99,7 +111,28 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   const getImageUrl = (url: string | undefined) => {
     if (!url) return null;
 
-    console.log("🖼️ Processing image URL:", url);
+    console.log(
+      "🖼️ Processing image URL:",
+      url.substring(0, 100) + (url.length > 100 ? "..." : "")
+    );
+
+    // Handle Google Cloud Storage URLs (used by Moonbirds and others)
+    if (url.includes("googleusercontent.com")) {
+      console.log("✅ Google Cloud Storage URL detected (Moonbirds-style)");
+      return url; // Use Google Cloud URL directly
+    }
+
+    // Handle data URIs (for on-chain artwork)
+    if (url.startsWith("data:")) {
+      console.log("✅ Data URI detected (on-chain artwork)");
+      return url;
+    }
+
+    // Handle standard HTTP/HTTPS URLs
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      console.log("✅ HTTP/HTTPS URL detected");
+      return url;
+    }
 
     // If it's already a Rarible IPFS gateway URL, use it directly
     if (url.includes("ipfs.raribleuserdata.com")) {
@@ -118,22 +151,24 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     // Extract hash from other IPFS patterns and use Rarible gateway
     if (url.includes("/ipfs/")) {
       const parts = url.split("/ipfs/");
-      const hash = parts[1].split(/[?#]/)[0]; // Remove query params and anchors
-      const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hash}`;
-      console.log("✅ Extracted hash from gateway URL:", hash);
+      const hashAndPath = parts[1].split(/[?#\)\]\}]/)[0]; // Remove query params, anchors, and closing punctuation
+      const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hashAndPath}`;
+      console.log("✅ Extracted hash and path from gateway URL:", hashAndPath);
       console.log("✅ Converted to Rarible:", raribleUrl);
       return raribleUrl;
     }
 
-    // Check if it's a raw IPFS hash
-    if (
-      url.match(
-        /^(Qm[1-9A-HJ-NP-Za-km-z]{44,}|ba[A-Za-z0-9]{56,}|baf[A-Za-z0-9]{56,})$/
-      )
-    ) {
-      const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${url}`;
+    // Check if it's a raw IPFS hash (with or without path)
+    const hashMatch = url.match(
+      /^(Qm[1-9A-HJ-NP-Za-km-z]{44,}|ba[A-Za-z0-9]{56,}|baf[A-Za-z0-9]{56,})(\/.*)?$/
+    );
+    if (hashMatch) {
+      const hashWithPath = hashMatch[0];
+      const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hashWithPath}`;
       console.log(
-        "✅ Raw IPFS hash detected, converted to Rarible:",
+        "✅ Raw IPFS hash detected (with path):",
+        hashWithPath,
+        "converted to Rarible:",
         raribleUrl
       );
       return raribleUrl;
@@ -151,6 +186,18 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     originalImage: nft.image,
     processedImageUrl: imageUrl,
     isIPFS: nft.image?.startsWith("ipfs://") || nft.image?.includes("/ipfs/"),
+    imageType: nft.image?.includes("googleusercontent.com")
+      ? "google-cloud"
+      : nft.image?.startsWith("data:")
+      ? "data-uri"
+      : nft.image?.startsWith("http")
+      ? "http-url"
+      : nft.image?.startsWith("ipfs://")
+      ? "ipfs-protocol"
+      : nft.image?.includes("/ipfs/")
+      ? "ipfs-gateway"
+      : "unknown",
+    imageLength: nft.image?.length || 0,
   });
 
   return (
@@ -193,7 +240,9 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
               onLoad={handleImageLoad}
               onError={handleImageError}
               sizes="(max-width: 400px) 100vw, 400px"
-              unoptimized={imageUrl.includes("ipfs")} // Disable optimization for IPFS images
+              unoptimized={
+                imageUrl.includes("ipfs") || imageUrl.startsWith("data:")
+              } // Disable optimization for IPFS and data URIs
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-muted">
@@ -202,10 +251,28 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
                 <p className="text-sm text-muted-foreground">
                   {imageError ? "Image failed to load" : "Loading image..."}
                 </p>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <p>Original: {nft.image ? "✅ Present" : "❌ Missing"}</p>
+                  <p>Processed: {imageUrl ? "✅ Present" : "❌ Missing"}</p>
+                  <p>
+                    Type:{" "}
+                    {nft.image?.includes("googleusercontent.com")
+                      ? "Google Cloud"
+                      : nft.image?.startsWith("data:")
+                      ? "Data URI"
+                      : nft.image?.startsWith("http")
+                      ? "HTTP URL"
+                      : nft.image?.startsWith("ipfs://")
+                      ? "IPFS Protocol"
+                      : nft.image?.includes("/ipfs/")
+                      ? "IPFS Gateway"
+                      : "Unknown"}
+                  </p>
+                </div>
                 {imageUrl && (
                   <div className="mt-2">
                     <p className="text-xs text-muted-foreground">
-                      URL: {imageUrl}
+                      URL: {imageUrl.substring(0, 30)}...
                     </p>
                     <a
                       href={imageUrl}
@@ -298,14 +365,44 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
           </div>
         )}
 
-        {/* IPFS Link - Always show if we have any image */}
+        {/* Image Source - Always show if we have any image */}
         {nft.image && (
           <div className="mt-3 p-2 bg-muted/30 rounded-md">
             <div className="text-xs font-medium text-muted-foreground mb-1">
               Image Source:
             </div>
             <div className="text-xs break-all">
-              {nft.image.startsWith("ipfs://") ? (
+              {nft.image.includes("googleusercontent.com") ? (
+                <>
+                  <div className="text-blue-500 mb-1">
+                    ☁️ Google Cloud Storage
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    {nft.image.substring(0, 60)}...
+                  </div>
+                  <div>
+                    <a
+                      href={nft.image}
+                      target="_blank"
+                      className="text-blue-500 hover:text-blue-400 underline"
+                    >
+                      View Image
+                    </a>
+                  </div>
+                </>
+              ) : nft.image.startsWith("data:") ? (
+                <>
+                  <div className="text-orange-500 mb-1">
+                    🎨 On-Chain Artwork (Data URI)
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-1">
+                    Size: {Math.round(nft.image.length / 1024)}KB
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    This artwork is stored directly on the blockchain
+                  </div>
+                </>
+              ) : nft.image.startsWith("ipfs://") ? (
                 <>
                   <div className="text-blue-500 mb-1">IPFS: {nft.image}</div>
                   <div className="text-purple-500 mb-1">
@@ -331,7 +428,21 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
                   </div>
                 </>
               ) : (
-                <div className="text-green-500">Direct URL: {nft.image}</div>
+                <>
+                  <div className="text-green-500 mb-1">
+                    Direct URL: {nft.image.substring(0, 50)}
+                    {nft.image.length > 50 ? "..." : ""}
+                  </div>
+                  <div>
+                    <a
+                      href={nft.image}
+                      target="_blank"
+                      className="text-blue-500 hover:text-blue-400 underline"
+                    >
+                      View Image
+                    </a>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -354,6 +465,16 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       </CardFooter>
     </Card>
   );
+}
+
+// Helper function to clean markdown formatting from text
+function cleanMarkdown(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1") // Remove **bold**
+    .replace(/\*(.*?)\*/g, "$1") // Remove *italic*
+    .replace(/`(.*?)`/g, "$1") // Remove `code`
+    .trim();
 }
 
 // Utility function to extract NFT data from MCP tool results
@@ -390,19 +511,23 @@ export function extractNFTDataFromToolResult(toolResult: any): NFTData | null {
     // Extract basic NFT information with comprehensive field mapping for Rarible API
     const nftData: NFTData = {
       id: actualData.id || actualData.tokenId || actualData.token_id || "",
-      name:
+      name: cleanMarkdown(
         actualData.meta?.name || // Rarible: meta.name
-        actualData.name || // Direct name
-        actualData.title || // Title field
-        actualData.metadata?.name || // OpenSea: metadata.name
-        actualData.token_name || // Alternative naming
-        actualData.meta?.title || // Meta title
-        actualData.properties?.name, // Properties name
-      description:
+          actualData.name || // Direct name
+          actualData.title || // Title field
+          actualData.metadata?.name || // OpenSea: metadata.name
+          actualData.token_name || // Alternative naming
+          actualData.meta?.title || // Meta title
+          actualData.properties?.name ||
+          "" // Properties name
+      ),
+      description: cleanMarkdown(
         actualData.meta?.description || // Rarible: meta.description
-        actualData.description || // Direct description
-        actualData.metadata?.description || // OpenSea: metadata.description
-        actualData.properties?.description, // Properties description
+          actualData.description || // Direct description
+          actualData.metadata?.description || // OpenSea: metadata.description
+          actualData.properties?.description ||
+          "" // Properties description
+      ),
       image:
         actualData.meta?.image || // Rarible: meta.image (PRIORITY)
         actualData.meta?.content?.[0]?.url || // Rarible: meta.content[0].url
@@ -429,12 +554,13 @@ export function extractNFTDataFromToolResult(toolResult: any): NFTData | null {
     // Extract collection info with enhanced mapping
     if (actualData.collection || actualData.contract) {
       nftData.collection = {
-        name:
+        name: cleanMarkdown(
           actualData.collection?.name ||
-          actualData.collection?.title ||
-          actualData.collectionName ||
-          actualData.collection_name ||
-          "Unknown Collection",
+            actualData.collection?.title ||
+            actualData.collectionName ||
+            actualData.collection_name ||
+            "Unknown Collection"
+        ),
         id:
           actualData.collection?.id ||
           actualData.collection?.contract ||
