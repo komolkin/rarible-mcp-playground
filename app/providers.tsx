@@ -38,21 +38,6 @@ export function Providers({ children }: { children: ReactNode }) {
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
           requireUserPasswordOnCreate: false,
-          noPromptOnSignature: true,
-        },
-        // Minimize external wallet conflicts
-        externalWallets: {
-          // Only enable specific wallets to reduce conflicts
-          coinbaseWallet: {
-            connectionOptions: "smartWalletOnly",
-          },
-          metamask: {
-            connectionOptions: "injected",
-          },
-          // Disable other wallets that might cause conflicts
-          walletConnect: {
-            enabled: false,
-          },
         },
         // Prioritize non-extension login methods
         loginMethods: ["email", "sms", "wallet"],

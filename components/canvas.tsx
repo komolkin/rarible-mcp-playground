@@ -13,7 +13,20 @@ interface CanvasStore {
 
 export const useCanvasStore = create<CanvasStore>((set) => ({
   nfts: [],
-  setNFTs: (nfts) => set({ nfts }),
+  setNFTs: (nfts) => {
+    console.log(
+      "🎯 Canvas store setting NFTs:",
+      nfts.map((nft) => ({
+        id: nft.id,
+        name: nft.name,
+        description: nft.description,
+        image: nft.image ? "✅ Present" : "❌ Missing",
+        collection: nft.collection?.name,
+        traits: nft.traits?.length || 0,
+      }))
+    );
+    set({ nfts });
+  },
   clearNFTs: () => set({ nfts: [] }),
 }));
 

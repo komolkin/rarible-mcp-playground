@@ -43,7 +43,7 @@ export function PrivyConnectButton() {
         variant="outline"
         size="sm"
         disabled
-        className="bg-background border-border"
+        className="bg-background/80 backdrop-blur-md border-border"
       >
         <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
         Loading...
@@ -62,7 +62,7 @@ export function PrivyConnectButton() {
               disabled={isConnecting}
               variant="outline"
               size="sm"
-              className="bg-background border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
+              className="bg-background/80 backdrop-blur-md border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
             >
               {isConnecting ? (
                 <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -97,7 +97,7 @@ export function PrivyConnectButton() {
         <Button
           variant="outline"
           size="sm"
-          className="bg-background border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
+          className="bg-background/80 backdrop-blur-md border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
         >
           <Avatar className="h-5 w-5 mr-2">
             <AvatarFallback className="text-xs">
