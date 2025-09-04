@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  Built on top of <a href="https://github.com/zaidmukaddam/scira-mcp"><strong>Scira Chat</strong></a> by <a href="https://github.com/zaidmukaddam"><strong>zaidmukaddam</strong></a>
+</p>
+
+<p align="center">
   <a href="#features"><strong>Features</strong></a> •
   <a href="#mcp-server-configuration"><strong>MCP Configuration</strong></a> •
   <a href="#license"><strong>License</strong></a>
