@@ -38,7 +38,7 @@ export const modelDetails: Record<keyof typeof languageModels, ModelInfo> = {
     provider: "Anthropic",
     name: "Claude Sonnet 4",
     description:
-      "Anthropic's most advanced model with exceptional reasoning, coding, and creative capabilities. Optimized for Rarible MCP integration.",
+      "Anthropic's most advanced model with exceptional reasoning, coding, and creative capabilities. Optimized for rAIrible MCP integration.",
     apiVersion: "claude-sonnet-4-20250514",
     capabilities: [
       "Advanced",

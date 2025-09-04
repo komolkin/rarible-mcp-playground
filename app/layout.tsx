@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Menu } from "lucide-react";
 import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
-import { BotIdClient } from "botid/client";
+import { PrivyConnectButton } from "@/components/privy-connect-button";
+import "@/lib/extension-error-handler"; // Initialize extension error handling
 
-const inter = Inter({ subsets: ["latin"] });
+const geistMono = GeistMono;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mcpchat.scira.ai"),
-  title: "Scira MCP Chat",
-  description:
-    "Scira MCP Chat is a minimalistic MCP client with a good feature set.",
+  title: "rAIrible",
+  description: "rAIrible is a minimalistic MCP client with a good feature set.",
   openGraph: {
-    siteName: "Scira MCP Chat",
+    siteName: "rAIrible",
     url: "https://mcpchat.scira.ai",
     images: [
       {
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Scira MCP Chat",
+    title: "rAIrible",
     description:
-      "Scira MCP Chat is a minimalistic MCP client with a good feature set.",
+      "rAIrible is a minimalistic MCP client with a good feature set.",
     images: ["https://mcpchat.scira.ai/twitter-image.png"],
   },
 };
@@ -42,18 +42,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <BotIdClient
-          protect={[
-            {
-              path: "/api/chat",
-              method: "POST",
-            }
-          ]}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Simple extension error suppression - just hide the noise
+              window.addEventListener('error', function(e) {
+                if (e.message && e.message.includes('chrome.runtime.sendMessage')) {
+                  e.preventDefault();
+                  return false;
+                }
+              });
+              
+              window.addEventListener('unhandledrejection', function(e) {
+                if (e.reason && e.reason.message && e.reason.message.includes('chrome.runtime.sendMessage')) {
+                  e.preventDefault();
+                }
+              });
+            `,
+          }}
         />
       </head>
-      <body className={`${inter.className}`}>
+      <body className={`${geistMono.className}`}>
         <Providers>
           <div className="flex h-dvh w-full">
             <ChatSidebar />
@@ -65,7 +76,10 @@ export default function RootLayout({
                   </button>
                 </SidebarTrigger>
               </div>
-              <div className="flex-1 flex justify-center">{children}</div>
+              <div className="absolute top-4 right-4 z-50">
+                <PrivyConnectButton />
+              </div>
+              <div className="flex-1 flex">{children}</div>
             </main>
           </div>
         </Providers>

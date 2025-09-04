@@ -9,8 +9,6 @@ import { eq, and } from "drizzle-orm";
 import { initializeMCPClients, type MCPServerConfig } from "@/lib/mcp-client";
 import { generateTitle } from "@/app/actions";
 
-import { checkBotId } from "botid/server";
-
 export async function POST(req: Request) {
   const {
     messages,
@@ -25,15 +23,6 @@ export async function POST(req: Request) {
     userId: string;
     mcpServers?: MCPServerConfig[];
   } = await req.json();
-
-  const { isBot, isGoodBot } = await checkBotId();
-
-  if (isBot && !isGoodBot) {
-    return new Response(
-      JSON.stringify({ error: "Bot is not allowed to access this endpoint" }),
-      { status: 401, headers: { "Content-Type": "application/json" } }
-    );
-  }
 
   if (!userId) {
     return new Response(JSON.stringify({ error: "User ID is required" }), {
@@ -138,18 +127,36 @@ export async function POST(req: Request) {
       return {};
     }
 
-    // For Claude, we need to be very selective to stay under token limits
-    // 77 tools × 150 tokens = 11,550 tokens just for schemas
-    // We need to reduce this to ~20 tools × 150 = 3,000 tokens
+    // Balanced tool selection to avoid overloading the AI service
+    // Prioritize the most relevant tools based on user query
+    // This prevents "overloaded_error" while maintaining comprehensive functionality
 
     const relevantTools: any = {};
     let toolCount = 0;
-    const maxTools = 8; // Very strict limit for Claude to stay under token limits
+    const maxTools = 20; // Balanced approach: enough tools for comprehensive functionality without overloading
 
     // Create a priority scoring system based on user intent
     const getToolPriority = (toolName: string, toolDesc: string): number => {
       let score = 0;
       const toolNameLower = toolName.toLowerCase();
+
+      // ULTRA-HIGH priority for specific NFT item queries
+      if (lowerMessage.includes("#") && toolName === "NFT-items-get-item-by-id")
+        score += 3000; // Maximum priority for specific NFT item requests
+
+      // Also prioritize for other NFT item patterns
+      if (
+        (lowerMessage.includes("token") || lowerMessage.includes("item")) &&
+        toolName === "NFT-items-get-item-by-id"
+      )
+        score += 2500;
+
+      // Boost for ethereum: format addresses
+      if (
+        lowerMessage.includes("ethereum:") &&
+        toolName === "NFT-items-get-item-by-id"
+      )
+        score += 2800;
 
       // Ultra-high priority for exact matches
       if (lowerMessage.includes("floor") && toolNameLower.includes("floor"))
@@ -171,7 +178,12 @@ export async function POST(req: Request) {
       if (lowerMessage.includes("stats") && toolNameLower.includes("stat"))
         score += 500;
 
-      // Essential Rarible MCP tools (exact names from your server)
+      // Essential rAIrible MCP tools (exact names from your server)
+      // HIGHEST PRIORITY: Individual NFT item lookup
+      if (toolName === "NFT-items-get-item-by-id") score += 2000; // Highest priority for specific NFT queries
+      if (toolName === "NFT-items-get-item-by-ids") score += 1900; // Multiple NFT lookup
+
+      // High priority for collection and market data
       if (toolName === "NFT-data-and-historical-statistics-get-floor-price")
         score += 1000;
       if (toolName === "search-API-search-collection") score += 900;
@@ -255,7 +267,7 @@ export async function POST(req: Request) {
     }
 
     console.log(
-      `Claude-optimized: filtered ${toolEntries.length} tools down to ${toolCount} high-priority tools`
+      `MCP Tools: using ${toolCount} out of ${toolEntries.length} available tools (priority-sorted)`
     );
 
     // Log the selected tools for debugging
@@ -266,9 +278,12 @@ export async function POST(req: Request) {
     if (toolCount === 0 && toolEntries.length > 0) {
       console.log("No tools matched criteria, including essential NFT tools");
       const essentialTools = [
-        "search-api-search-collection",
-        "nft-data-and-historical-statistics-get-floor-price",
-        "nft-data-and-historical-statistics-get-collection-stats",
+        "NFT-items-get-item-by-id", // MOST IMPORTANT: Individual NFT metadata
+        "NFT-items-get-item-by-ids", // Multiple NFT lookup
+        "search-API-search-collection",
+        "NFT-data-and-historical-statistics-get-floor-price",
+        "NFT-data-and-historical-statistics-get-collection-stats",
+        "NFT-collections-get-collection-by-id",
         "collection-statistics-get-owners",
       ];
 
@@ -368,6 +383,20 @@ export async function POST(req: Request) {
     The tools are very powerful, and you can use them to answer the user's question.
     So choose the tool that is most relevant to the user's question.
 
+    IMPORTANT: For MCP tools, always wrap parameters in a "request" object. Examples:
+    - NFT-items-get-item-by-id: {"request": {"itemId": "ETHEREUM:0x8a90cab2b38dba80c64b7734e58ee1db38b8992e:2336"}}
+    - NFT-collections-get-collection-by-id: {"request": {"collection": "ETHEREUM:0x8a90cab2b38dba80c64b7734e58ee1db38b8992e"}}
+    - search-API-search-items: {"request": {"query": "doodles", "limit": 10}}
+    - NFT-data-and-historical-statistics-get-floor-price: {"request": {"id": "ETHEREUM:0x8a90cab2b38dba80c64b7734e58ee1db38b8992e"}}
+    
+    NEVER use flat parameters like {"itemId": "..."} - ALWAYS wrap in {"request": {...}}
+
+    CRITICAL: When users ask about specific NFTs (like "Doodles #2336" or "ETHEREUM:0x..."), you MUST:
+    1. Call NFT-items-get-item-by-id FIRST to get complete metadata
+    2. Extract the NFT's title, collection name, image URL, and price from the result
+    3. Present this information clearly to the user
+    4. The system will automatically render a visual NFT card with this data
+
     If tools are not available, say you don't know or if the user wants a tool they can add one from the server icon in bottom left corner in the sidebar.
 
     You can use multiple tools in a single response.
@@ -408,7 +437,7 @@ export async function POST(req: Request) {
       delayInMs: 50, // Increase delay for better tool result processing
       chunking: "word", // Use word chunking for more stable streaming
     }),
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Chat API Error:", JSON.stringify(error, null, 2));
 
       // Handle schema validation errors gracefully
@@ -431,7 +460,7 @@ export async function POST(req: Request) {
         return; // Don't throw, let the conversation continue
       }
     },
-    async onFinish({ response }) {
+    async onFinish({ response }: { response: any }) {
       responseCompleted = true;
       const allMessages = appendResponseMessages({
         messages,
@@ -472,7 +501,7 @@ export async function POST(req: Request) {
     headers: {
       "X-Chat-ID": id,
     },
-    getErrorMessage: (error) => {
+    getErrorMessage: (error: any) => {
       if (error instanceof Error) {
         if (
           error.message.includes("Rate limit") ||

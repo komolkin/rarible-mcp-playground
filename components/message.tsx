@@ -5,14 +5,11 @@ import { memo, useCallback, useEffect, useState } from "react";
 import equal from "fast-deep-equal";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/utils";
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  LightbulbIcon,
-} from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, LightbulbIcon } from "lucide-react";
 import { SpinnerIcon } from "./icons";
 import { ToolInvocation } from "./tool-invocation";
 import { CopyButton } from "./copy-button";
+import { NFTMessagePart, isNFTRelatedMessage } from "./nft-message-part";
 
 interface ReasoningPart {
   type: "reasoning";
@@ -171,6 +168,30 @@ const PurePreviewMessage = ({
           {message.parts?.map((part, i) => {
             switch (part.type) {
               case "text":
+                // Check if this is an NFT-related message that should show previews
+                const toolInvocations = message.parts
+                  ?.filter((p) => p.type === "tool-invocation")
+                  ?.map((p) => ({
+                    toolName: p.toolInvocation?.toolName,
+                    state: p.toolInvocation?.state,
+                    args: p.toolInvocation?.args,
+                    result:
+                      "result" in p.toolInvocation
+                        ? p.toolInvocation.result
+                        : null,
+                  }))
+                  ?.filter((inv) => inv.toolName); // Include all tool invocations, not just successful ones
+
+                // Force NFT preview for any assistant message with NFT tools or metadata
+                const showNFTPreview =
+                  message.role === "assistant" &&
+                  (toolInvocations?.some(
+                    (inv) => inv.toolName === "NFT-items-get-item-by-id"
+                  ) ||
+                    part.text.includes("**Name**:") ||
+                    part.text.includes("**Collection**:") ||
+                    part.text.includes("ipfs.raribleuserdata.com"));
+
                 return (
                   <div
                     key={`message-${message.id}-part-${i}`}
@@ -182,7 +203,14 @@ const PurePreviewMessage = ({
                           message.role === "user",
                       })}
                     >
-                      <Markdown>{part.text}</Markdown>
+                      {showNFTPreview ? (
+                        <NFTMessagePart
+                          content={part.text}
+                          toolInvocations={toolInvocations}
+                        />
+                      ) : (
+                        <Markdown>{part.text}</Markdown>
+                      )}
                     </div>
                   </div>
                 );
