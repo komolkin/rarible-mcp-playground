@@ -33,9 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { MCPServerManager } from "./mcp-server-manager";
 
-import { ThemeToggle } from "./theme-toggle";
-import { getUserId, updateUserId } from "@/lib/user-id";
 import { useChats } from "@/lib/hooks/use-chats";
+import { useWalletUser } from "@/lib/hooks/use-wallet-user";
+import { updateUserId } from "@/lib/user-id";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import {
@@ -65,13 +65,16 @@ import { AnimatePresence, motion } from "motion/react";
 export function ChatSidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [userId, setUserId] = useState<string>("");
   const [mcpSettingsOpen, setMcpSettingsOpen] = useState(false);
 
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [editUserIdOpen, setEditUserIdOpen] = useState(false);
   const [newUserId, setNewUserId] = useState("");
+
+  // Get wallet-aware user data
+  const walletUser = useWalletUser();
+  const userId = walletUser.userId;
 
   // Get MCP server data from context
   const {
@@ -81,10 +84,7 @@ export function ChatSidebar() {
     setSelectedMcpServers,
   } = useMCP();
 
-  // Initialize userId
-  useEffect(() => {
-    setUserId(getUserId());
-  }, []);
+  // No longer need to manually initialize userId - handled by useWalletUser hook
 
   // Use TanStack Query to fetch chats
   const { chats, isLoading, deleteChat, refreshChats } = useChats(userId);
@@ -117,8 +117,16 @@ export function ChatSidebar() {
       return;
     }
 
+    // Note: This only works for anonymous users
+    // Wallet users' IDs are determined by their wallet address
+    if (walletUser.type === "wallet") {
+      toast.error(
+        "Cannot edit User ID when connected with wallet. Disconnect wallet to edit."
+      );
+      return;
+    }
+
     updateUserId(newUserId.trim());
-    setUserId(newUserId.trim());
     setEditUserIdOpen(false);
     toast.success("User ID updated successfully");
 
@@ -168,7 +176,7 @@ export function ChatSidebar() {
           >
             {!isCollapsed && (
               <div className="font-semibold text-lg text-foreground/90">
-                Rarible MCP
+                rAIrible
               </div>
             )}
             {isCollapsed && (
@@ -392,10 +400,21 @@ export function ChatSidebar() {
                     </Avatar>
                     <div className="grid text-left text-sm leading-tight">
                       <span className="truncate font-medium text-foreground/90">
-                        User ID
+                        {walletUser.type === "wallet"
+                          ? walletUser.walletAddress
+                            ? "Wallet"
+                            : "Email"
+                          : "User ID"}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
-                        {userId.substring(0, 16)}...
+                        {walletUser.type === "wallet" && walletUser.isConnected
+                          ? walletUser.walletAddress
+                            ? `${walletUser.walletAddress.substring(
+                                0,
+                                6
+                              )}...${walletUser.walletAddress.substring(38)}`
+                            : walletUser.email
+                          : `${userId.substring(0, 16)}...`}
                       </span>
                     </div>
                   </div>
@@ -418,7 +437,16 @@ export function ChatSidebar() {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold text-foreground/90">
-                      User ID
+                      {walletUser.type === "wallet"
+                        ? walletUser.walletAddress
+                          ? "Wallet Address"
+                          : "Email"
+                        : "User ID"}
+                      {walletUser.isConnected && (
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          Connected
+                        </Badge>
+                      )}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
                       {userId}
@@ -432,21 +460,34 @@ export function ChatSidebar() {
                   onSelect={(e) => {
                     e.preventDefault();
                     navigator.clipboard.writeText(userId);
-                    toast.success("User ID copied to clipboard");
+                    const label =
+                      walletUser.type === "wallet"
+                        ? walletUser.walletAddress
+                          ? "Wallet address"
+                          : "Email"
+                        : "User ID";
+                    toast.success(`${label} copied to clipboard`);
                   }}
                 >
                   <Copy className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  Copy User ID
+                  {walletUser.type === "wallet" && walletUser.walletAddress
+                    ? "Copy address"
+                    : walletUser.type === "wallet" && walletUser.email
+                    ? "Copy email"
+                    : "Copy User ID"}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setEditUserIdOpen(true);
-                  }}
-                >
-                  <Pencil className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  Edit User ID
-                </DropdownMenuItem>
+                {walletUser.type !== "wallet" && (
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setEditUserIdOpen(true);
+                      setNewUserId(userId);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
+                    Edit User ID
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
@@ -458,16 +499,6 @@ export function ChatSidebar() {
                 >
                   <Settings className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
                   MCP Settings
-                </DropdownMenuItem>
-
-                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center">
-                      <Sparkles className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                      Theme
-                    </div>
-                    <ThemeToggle className="h-6 w-6" />
-                  </div>
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>

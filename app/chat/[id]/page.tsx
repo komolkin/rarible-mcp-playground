@@ -1,16 +1,17 @@
 "use client";
 
 import Chat from "@/components/chat";
-import { getUserId } from "@/lib/user-id";
+import { Canvas } from "@/components/canvas";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
+import { useUserId } from "@/lib/hooks/use-wallet-user";
 
 export default function ChatPage() {
   const params = useParams();
   const chatId = params?.id as string;
   const queryClient = useQueryClient();
-  const userId = getUserId();
+  const userId = useUserId();
 
   // Prefetch chat data
   useEffect(() => {
@@ -53,5 +54,14 @@ export default function ChatPage() {
     prefetchChat();
   }, [chatId, userId, queryClient]);
 
-  return <Chat />;
+  return (
+    <div className="flex h-full w-full">
+      <div className="flex-1 min-w-0">
+        <Chat />
+      </div>
+      <div className="w-[480px] border-l bg-muted/50">
+        <Canvas />
+      </div>
+    </div>
+  );
 }
