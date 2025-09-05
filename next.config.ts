@@ -38,6 +38,22 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "**.raribleuserdata.com",
       },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.dweb.link",
+      },
+      {
+        protocol: "https",
+        hostname: "**.cf-ipfs.com",
+      },
     ],
   },
   async headers() {

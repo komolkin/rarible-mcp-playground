@@ -175,13 +175,12 @@ export default function Chat() {
           <ProjectOverview />
           <form onSubmit={handleFormSubmit} className="mt-4 w-full mx-auto">
             <Textarea
-              selectedModel={selectedModel}
-              setSelectedModel={setSelectedModel}
               handleInputChange={handleInputChange}
               input={input}
               isLoading={isLoading}
               status={status}
               stop={stop}
+              showShortcuts={true}
             />
           </form>
         </div>
@@ -196,8 +195,6 @@ export default function Chat() {
           </div>
           <form onSubmit={handleFormSubmit} className="mt-2 w-full mx-auto">
             <Textarea
-              selectedModel={selectedModel}
-              setSelectedModel={setSelectedModel}
               handleInputChange={handleInputChange}
               input={input}
               isLoading={isLoading}

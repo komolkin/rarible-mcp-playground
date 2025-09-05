@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import ColorThief from "colorthief";
 import {
   Card,
   CardContent,
@@ -11,8 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, Copy } from "lucide-react";
+import { ShoppingCart, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { usePrivy } from "@privy-io/react-auth";
+import {
+  getSellOrders,
+  getMarketplaceUrl,
+  canPurchase,
+} from "@/lib/rarible-orders";
 
 export interface NFTData {
   id: string;
@@ -53,57 +60,225 @@ interface NFTPreviewProps {
 }
 
 export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
-  const [imageLoading, setImageLoading] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isProcessingPurchase, setIsProcessingPurchase] = useState(false);
+  const [dominantColor, setDominantColor] = useState<string>("");
 
-  const handleImageLoad = () => {
-    console.log("Image loaded successfully:", nft.image);
-    setImageLoading(false);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const { authenticated, user } = usePrivy();
+
+  // Function to extract dominant color from image
+  const extractDominantColor = () => {
+    if (imageRef.current && imageLoaded && imageRef.current.complete) {
+      try {
+        const colorThief = new ColorThief();
+        // Use quality parameter for better performance (sample every 10th pixel)
+        const color = colorThief.getColor(imageRef.current, 10);
+
+        // Make colors brighter by increasing saturation and reducing transparency
+        const [r, g, b] = color;
+        const enhancedR = Math.min(255, Math.round(r * 1.1)); // Boost by 10%
+        const enhancedG = Math.min(255, Math.round(g * 1.1));
+        const enhancedB = Math.min(255, Math.round(b * 1.1));
+
+        const rgbColor = `rgb(${enhancedR}, ${enhancedG}, ${enhancedB})`;
+        const rgbaColor = `rgba(${enhancedR}, ${enhancedG}, ${enhancedB}, 0.25)`; // Increased opacity from 0.15 to 0.25
+        setDominantColor(rgbaColor);
+        console.log(
+          "🎨 Extracted dominant color:",
+          rgbColor,
+          "from image:",
+          imageRef.current.src
+        );
+      } catch (error) {
+        console.error("Failed to extract color:", error);
+        console.error("This might be due to CORS issues with external images");
+
+        // Check if it's a CORS error
+        if (error instanceof Error && error.message.includes("tainted")) {
+          console.error(
+            "Canvas tainted by cross-origin data. Image needs proper CORS headers."
+          );
+        }
+
+        setDominantColor("rgba(30, 30, 30, 0.15)"); // Fallback color
+      }
+    } else {
+      console.warn("Image not ready for color extraction:", {
+        hasRef: !!imageRef.current,
+        imageLoaded,
+        complete: imageRef.current?.complete,
+      });
+    }
   };
 
-  const handleImageError = () => {
-    console.log("Image failed to load:", nft.image);
-    setImageLoading(false);
+  // Debug NFT data being passed to component
+  useEffect(() => {
+    console.log("🎴 NFTPreview received data:", {
+      id: nft.id,
+      name: nft.name,
+      description: nft.description,
+      image: nft.image ? nft.image.substring(0, 100) + "..." : "none",
+      collection: nft.collection,
+      hasTraits: !!nft.traits,
+      traitCount: nft.traits?.length || 0,
+    });
+  }, [nft]);
+
+  // Trigger color extraction when image is loaded
+  useEffect(() => {
+    if (imageLoaded && imageRef.current && imageRef.current.complete) {
+      console.log("🎨 Attempting color extraction via useEffect");
+      extractDominantColor();
+    }
+  }, [imageLoaded]);
+
+  const handleImageLoad = () => {
+    console.log("✅ Image loaded successfully:", {
+      nftId: nft.id,
+      originalUrl: nft.image?.substring(0, 50) + "...",
+      processedUrl: getImageUrl(nft.image)?.substring(0, 50) + "...",
+      timestamp: new Date().toISOString(),
+    });
+    setImageLoaded(true);
+    setImageError(false);
+
+    // Extract dominant color after image loads
+    // According to Color Thief docs, we need to ensure image is complete
+    if (imageRef.current && imageRef.current.complete) {
+      extractDominantColor();
+    } else {
+      // If for some reason it's not complete, try again after a short delay
+      setTimeout(() => {
+        extractDominantColor();
+      }, 100);
+    }
+  };
+
+  const handleImageError = (event: any) => {
+    const imageUrl = getImageUrl(nft.image);
+
+    console.error("💥 Image failed to load:", {
+      nftId: nft.id,
+      originalUrl: nft.image,
+      processedUrl: imageUrl,
+      imageType: nft.image?.includes("googleusercontent.com")
+        ? "Google Cloud"
+        : nft.image?.startsWith("data:")
+        ? "Data URI"
+        : nft.image?.startsWith("http")
+        ? "HTTP URL"
+        : nft.image?.startsWith("ipfs://")
+        ? "IPFS Protocol"
+        : nft.image?.includes("/ipfs/")
+        ? "IPFS Gateway"
+        : "Unknown",
+      timestamp: new Date().toISOString(),
+      errorEvent: event?.type || "unknown",
+      errorTarget: event?.target?.src || "unknown",
+      nextConfigCheck: imageUrl?.includes("googleusercontent.com")
+        ? "Google Cloud - should be allowed in next.config.ts"
+        : imageUrl?.includes("ipfs.raribleuserdata.com")
+        ? "Rarible IPFS - should be allowed in next.config.ts"
+        : "Check if domain is in next.config.ts remotePatterns",
+    });
+
+    setImageLoaded(false);
     setImageError(true);
   };
 
-  // Add timeout for image loading
+  // Reset image state when NFT image URL changes
   useEffect(() => {
-    if (nft.image) {
-      console.log(
-        "🖼️ Setting up image loading timeout for:",
-        nft.image?.substring(0, 100) + "..."
-      );
-      const timeout = setTimeout(() => {
-        if (imageLoading) {
-          console.log(
-            "⏰ Image loading timeout reached:",
-            nft.image?.substring(0, 100) + "..."
-          );
-          setImageLoading(false);
-          setImageError(true);
-        }
-      }, 10000); // 10 second timeout
+    console.log("🔄 Image URL changed, resetting state:", {
+      nftId: nft.id,
+      hasImage: !!nft.image,
+      originalUrl: nft.image?.substring(0, 100) + "...",
+      processedUrl: getImageUrl(nft.image)?.substring(0, 100) + "...",
+    });
 
-      return () => clearTimeout(timeout);
-    } else {
-      // No image URL provided - stop loading immediately
-      console.log("❌ No image URL provided, stopping loading state");
-      setImageLoading(false);
+    setImageLoaded(false);
+    setImageError(false);
+
+    if (!nft.image) {
+      console.log("❌ No image URL provided");
       setImageError(true);
     }
-  }, [nft.image]);
+  }, [nft.image]); // Simplified dependencies
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(nft.id);
     toast.success("NFT ID copied to clipboard");
   };
 
-  const handleBuy = () => {
-    if (nft.marketplace?.url) {
-      window.open(nft.marketplace.url, "_blank");
-    } else {
-      toast.info("Marketplace link not available");
+  const handleBuy = async () => {
+    if (!nft.price) {
+      toast.info("This NFT is not for sale");
+      return;
+    }
+
+    // Check if user is connected
+    if (!authenticated) {
+      toast.error("Please connect your wallet to purchase NFTs", {
+        description: "Click the wallet button in the top right to connect",
+      });
+      return;
+    }
+
+    const walletAddress = user?.wallet?.address;
+    if (!canPurchase(walletAddress)) {
+      toast.error("Wallet connection required for purchases");
+      return;
+    }
+
+    setIsProcessingPurchase(true);
+
+    try {
+      // Since Rarible API has 403 restrictions, provide enhanced marketplace experience
+      console.log("🛒 Processing purchase for:", nft.id);
+
+      toast.loading("Preparing purchase...", { id: "purchase-prep" });
+
+      // Simulate order checking (since API is restricted)
+      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // Determine best marketplace based on NFT data
+      let targetPlatform = "Rarible";
+      let marketplaceUrl = getMarketplaceUrl(nft.id, "rarible");
+
+      // Use marketplace info if available
+      if (nft.marketplace?.name && nft.marketplace?.url) {
+        targetPlatform = nft.marketplace.name;
+        marketplaceUrl = nft.marketplace.url;
+      }
+
+      // Show purchase preparation success
+      toast.success(`Ready to purchase on ${targetPlatform}!`, {
+        id: "purchase-prep",
+        description: `Price: ${nft.price.amount} ${
+          nft.price.currency
+        } • Connected: ${user?.wallet?.address?.slice(0, 6)}...`,
+      });
+
+      // Open marketplace with slight delay for better UX
+      setTimeout(() => {
+        window.open(marketplaceUrl, "_blank");
+        toast.info(`Opening ${targetPlatform} to complete your purchase`, {
+          description: "Complete the transaction in the marketplace",
+        });
+      }, 1200);
+    } catch (error) {
+      console.error("💥 Error in purchase process:", error);
+      toast.error("Purchase preparation failed", {
+        id: "purchase-prep",
+        description: "Opening marketplace directly",
+      });
+
+      // Fallback to marketplace URL
+      const marketplaceUrl = nft.marketplace?.url || getMarketplaceUrl(nft.id);
+      window.open(marketplaceUrl, "_blank");
+    } finally {
+      setIsProcessingPurchase(false);
     }
   };
 
@@ -128,12 +303,6 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       return url;
     }
 
-    // Handle standard HTTP/HTTPS URLs
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      console.log("✅ HTTP/HTTPS URL detected");
-      return url;
-    }
-
     // If it's already a Rarible IPFS gateway URL, use it directly
     if (url.includes("ipfs.raribleuserdata.com")) {
       console.log("✅ Already Rarible gateway URL");
@@ -144,7 +313,12 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     if (url.startsWith("ipfs://")) {
       const hash = url.replace("ipfs://", "");
       const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hash}`;
-      console.log("✅ Converted ipfs:// to Rarible:", raribleUrl);
+      console.log("🔄 Converting ipfs:// to Rarible gateway:", {
+        original: url,
+        hash: hash,
+        converted: raribleUrl,
+        hashLength: hash.length,
+      });
       return raribleUrl;
     }
 
@@ -153,8 +327,12 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       const parts = url.split("/ipfs/");
       const hashAndPath = parts[1].split(/[?#\)\]\}]/)[0]; // Remove query params, anchors, and closing punctuation
       const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hashAndPath}`;
-      console.log("✅ Extracted hash and path from gateway URL:", hashAndPath);
-      console.log("✅ Converted to Rarible:", raribleUrl);
+      console.log("🔄 Converting IPFS gateway URL:", {
+        original: url,
+        extractedPart: parts[1],
+        cleanHashAndPath: hashAndPath,
+        converted: raribleUrl,
+      });
       return raribleUrl;
     }
 
@@ -174,15 +352,35 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       return raribleUrl;
     }
 
-    // For non-IPFS URLs, use as-is
-    console.log("ℹ️ Non-IPFS URL, using as-is");
+    // Handle standard HTTP/HTTPS URLs (only if not IPFS-related)
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      // Check if it's an IPFS gateway we missed
+      if (url.includes("/ipfs/")) {
+        console.log("🔄 Found IPFS gateway in HTTP URL, converting to Rarible");
+        const parts = url.split("/ipfs/");
+        const hashAndPath = parts[1].split(/[?#\)\]\}]/)[0];
+        const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hashAndPath}`;
+        console.log("🔄 Converting HTTP IPFS gateway:", {
+          original: url,
+          extractedPart: parts[1],
+          cleanHashAndPath: hashAndPath,
+          converted: raribleUrl,
+        });
+        return raribleUrl;
+      }
+      console.log("✅ HTTP/HTTPS URL detected (non-IPFS)");
+      return url;
+    }
+
+    // For unknown URLs, use as-is
+    console.log("ℹ️ Unknown URL format, using as-is");
     return url;
   };
 
   const imageUrl = getImageUrl(nft.image);
 
-  // Debug image processing
-  console.log("NFT image processing:", {
+  // Debug image processing with enhanced IPFS debugging
+  console.log("🔍 NFT image processing:", {
     originalImage: nft.image,
     processedImageUrl: imageUrl,
     isIPFS: nft.image?.startsWith("ipfs://") || nft.image?.includes("/ipfs/"),
@@ -198,10 +396,26 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       ? "ipfs-gateway"
       : "unknown",
     imageLength: nft.image?.length || 0,
+    urlsMatch: nft.image === imageUrl,
+    isRaribleGateway: imageUrl?.includes("ipfs.raribleuserdata.com"),
+    nextJsAllowed:
+      imageUrl?.includes("ipfs.raribleuserdata.com") ||
+      imageUrl?.includes("googleusercontent.com"),
   });
 
+  // Test IPFS gateway accessibility for debugging
+  if (imageUrl?.includes("ipfs.raribleuserdata.com")) {
+    console.log("🧪 Testing IPFS gateway URL:", imageUrl);
+  }
+
   return (
-    <Card className={`w-full max-w-sm mx-auto overflow-hidden ${className}`}>
+    <Card
+      className={`w-full max-w-sm mx-auto overflow-hidden transition-all duration-500 ${className}`}
+      style={{
+        backgroundColor: dominantColor || "transparent",
+        border: dominantColor ? "1px solid rgba(255,255,255,0.1)" : undefined,
+      }}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
@@ -227,64 +441,32 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       <CardContent className="pb-3">
         {/* NFT Image */}
         <div className="relative aspect-square w-full mb-3 bg-muted rounded-lg overflow-hidden">
-          {imageLoading && (
-            <Skeleton className="absolute inset-0 w-full h-full" />
+          {/* Always try to render image if URL exists */}
+          {imageUrl && (
+            <>
+              <img
+                ref={imageRef}
+                src={imageUrl}
+                alt={nft.name || "NFT"}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  imageLoaded ? "opacity-100" : "opacity-0"
+                }`}
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                crossOrigin="anonymous" // Required for ColorThief to work with external images
+                onLoadStart={() =>
+                  console.log(
+                    "🔄 Image load started for:",
+                    imageUrl?.substring(0, 50)
+                  )
+                }
+              />
+            </>
           )}
 
-          {imageUrl && !imageError ? (
-            <Image
-              src={imageUrl}
-              alt={nft.name || "NFT"}
-              fill
-              className="object-cover"
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              sizes="(max-width: 400px) 100vw, 400px"
-              unoptimized={
-                imageUrl.includes("ipfs") || imageUrl.startsWith("data:")
-              } // Disable optimization for IPFS and data URIs
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted">
-              <div className="text-center">
-                <div className="h-8 w-8 mx-auto mb-2 bg-muted-foreground/20 rounded-full" />
-                <p className="text-sm text-muted-foreground">
-                  {imageError ? "Image failed to load" : "Loading image..."}
-                </p>
-                <div className="mt-2 text-xs text-muted-foreground">
-                  <p>Original: {nft.image ? "✅ Present" : "❌ Missing"}</p>
-                  <p>Processed: {imageUrl ? "✅ Present" : "❌ Missing"}</p>
-                  <p>
-                    Type:{" "}
-                    {nft.image?.includes("googleusercontent.com")
-                      ? "Google Cloud"
-                      : nft.image?.startsWith("data:")
-                      ? "Data URI"
-                      : nft.image?.startsWith("http")
-                      ? "HTTP URL"
-                      : nft.image?.startsWith("ipfs://")
-                      ? "IPFS Protocol"
-                      : nft.image?.includes("/ipfs/")
-                      ? "IPFS Gateway"
-                      : "Unknown"}
-                  </p>
-                </div>
-                {imageUrl && (
-                  <div className="mt-2">
-                    <p className="text-xs text-muted-foreground">
-                      URL: {imageUrl.substring(0, 30)}...
-                    </p>
-                    <a
-                      href={imageUrl}
-                      target="_blank"
-                      className="text-xs text-blue-500 hover:text-blue-400 underline"
-                    >
-                      Open directly
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
+          {/* Show blinking skeleton when not loaded or on error */}
+          {(!imageLoaded || (imageError && !imageUrl)) && (
+            <div className="absolute inset-0 w-full h-full bg-white/10 animate-pulse rounded-lg" />
           )}
         </div>
 
@@ -317,7 +499,7 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Current bid</span>
               <div className="text-right">
-                <div className="font-semibold text-blue-600">
+                <div className="font-semibold text-white">
                   {nft.bid.amount} {nft.bid.currency}
                 </div>
                 {nft.bid.usd && (
@@ -337,7 +519,7 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
             <div className="flex flex-wrap gap-1">
               {nft.traits.slice(0, 6).map((trait, index) => (
                 <Badge
-                  key={index}
+                  key={`${trait.type}-${trait.value}-${index}`}
                   variant="secondary"
                   className="text-xs"
                   title={`${trait.type}: ${trait.value}${
@@ -355,113 +537,47 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
             </div>
           </div>
         )}
-
-        {/* Description */}
-        {nft.description && (
-          <div className="mt-3">
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {nft.description}
-            </p>
-          </div>
-        )}
-
-        {/* Image Source - Always show if we have any image */}
-        {nft.image && (
-          <div className="mt-3 p-2 bg-muted/30 rounded-md">
-            <div className="text-xs font-medium text-muted-foreground mb-1">
-              Image Source:
-            </div>
-            <div className="text-xs break-all">
-              {nft.image.includes("googleusercontent.com") ? (
-                <>
-                  <div className="text-blue-500 mb-1">
-                    ☁️ Google Cloud Storage
-                  </div>
-                  <div className="text-xs text-muted-foreground mb-1">
-                    {nft.image.substring(0, 60)}...
-                  </div>
-                  <div>
-                    <a
-                      href={nft.image}
-                      target="_blank"
-                      className="text-blue-500 hover:text-blue-400 underline"
-                    >
-                      View Image
-                    </a>
-                  </div>
-                </>
-              ) : nft.image.startsWith("data:") ? (
-                <>
-                  <div className="text-orange-500 mb-1">
-                    🎨 On-Chain Artwork (Data URI)
-                  </div>
-                  <div className="text-xs text-muted-foreground mb-1">
-                    Size: {Math.round(nft.image.length / 1024)}KB
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    This artwork is stored directly on the blockchain
-                  </div>
-                </>
-              ) : nft.image.startsWith("ipfs://") ? (
-                <>
-                  <div className="text-blue-500 mb-1">IPFS: {nft.image}</div>
-                  <div className="text-purple-500 mb-1">
-                    Rarible Gateway: {getImageUrl(nft.image)}
-                  </div>
-                  <div>
-                    <a
-                      href={getImageUrl(nft.image)}
-                      target="_blank"
-                      className="text-blue-500 hover:text-blue-400 underline"
-                    >
-                      View Image
-                    </a>
-                  </div>
-                </>
-              ) : nft.image.includes("/ipfs/") ? (
-                <>
-                  <div className="text-purple-500 mb-1">
-                    Rarible Gateway: {nft.image}
-                  </div>
-                  <div>
-                    Hash: <code>{nft.image.split("/ipfs/")[1]}</code>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="text-green-500 mb-1">
-                    Direct URL: {nft.image.substring(0, 50)}
-                    {nft.image.length > 50 ? "..." : ""}
-                  </div>
-                  <div>
-                    <a
-                      href={nft.image}
-                      target="_blank"
-                      className="text-blue-500 hover:text-blue-400 underline"
-                    >
-                      View Image
-                    </a>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
       </CardContent>
 
       <CardFooter className="pt-2">
-        <Button
-          onClick={handleBuy}
-          size="sm"
-          className="w-full"
-          disabled={!nft.price || !nft.marketplace?.url}
-          variant={nft.price ? "default" : "secondary"}
-        >
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          {nft.price
-            ? `Buy for ${nft.price.amount} ${nft.price.currency}`
-            : "Not for sale"}
-        </Button>
+        <div className="flex flex-col w-full gap-2">
+          {/* Show Buy button only if item is for sale */}
+          {nft.price && (
+            <Button
+              onClick={handleBuy}
+              size="sm"
+              className="w-full cursor-pointer"
+              disabled={isProcessingPurchase}
+              variant="default"
+            >
+              {isProcessingPurchase ? (
+                <>
+                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Buy for {nft.price.amount} {nft.price.currency}
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* View on Rarible button - always show */}
+          <Button
+            onClick={() => {
+              const raribleUrl = getMarketplaceUrl(nft.id, "rarible");
+              window.open(raribleUrl, "_blank");
+            }}
+            size="sm"
+            variant="secondary"
+            className="w-full cursor-pointer"
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            View on Rarible
+          </Button>
+        </div>
       </CardFooter>
     </Card>
   );
@@ -521,13 +637,7 @@ export function extractNFTDataFromToolResult(toolResult: any): NFTData | null {
           actualData.properties?.name ||
           "" // Properties name
       ),
-      description: cleanMarkdown(
-        actualData.meta?.description || // Rarible: meta.description
-          actualData.description || // Direct description
-          actualData.metadata?.description || // OpenSea: metadata.description
-          actualData.properties?.description ||
-          "" // Properties description
-      ),
+      description: undefined, // Removed descriptions to keep cards clean
       image:
         actualData.meta?.image || // Rarible: meta.image (PRIORITY)
         actualData.meta?.content?.[0]?.url || // Rarible: meta.content[0].url

@@ -404,8 +404,7 @@ export function NFTMessagePart({
           id: extractedNftId,
           name: extractedName || "Unknown NFT",
           image: imageUrl, // Use properly formatted image URL (IPFS, Google Cloud, etc.)
-          description:
-            "NFT from " + (extractedCollection || "Unknown Collection"),
+          description: undefined, // Removed generic description
           collection: {
             name: extractedCollection || "Unknown Collection",
             id: contractMatch?.[1] || "unknown",
@@ -428,10 +427,10 @@ export function NFTMessagePart({
           contract: contractMatch?.[1] || "unknown",
           traits: traits.length > 0 ? traits : undefined,
           marketplace: {
-            name: "OpenSea",
-            url: `https://opensea.io/assets/ethereum/${
+            name: "Rarible",
+            url: `https://rarible.com/ethereum/items/${
               contractMatch?.[1] || "0x8a90cab2b38dba80c64b7734e58ee1db38b8992e"
-            }/${tokenMatch?.[1] || "unknown"}`,
+            }:${tokenMatch?.[1] || "unknown"}`,
           },
         };
 

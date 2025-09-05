@@ -12,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
@@ -43,7 +42,7 @@ export function PrivyConnectButton() {
         variant="outline"
         size="sm"
         disabled
-        className="bg-background border-border"
+        className="bg-background/80 backdrop-blur-md border-border"
       >
         <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
         Loading...
@@ -62,7 +61,7 @@ export function PrivyConnectButton() {
               disabled={isConnecting}
               variant="outline"
               size="sm"
-              className="bg-background border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
+              className="bg-background/80 backdrop-blur-md border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
             >
               {isConnecting ? (
                 <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -83,13 +82,11 @@ export function PrivyConnectButton() {
     );
   }
 
-  // If authenticated, show user dropdown
-  const displayName =
-    user?.email?.address || user?.wallet?.address || "Unknown";
-  const shortAddress =
-    displayName.length > 20
-      ? `${displayName.slice(0, 6)}...${displayName.slice(-4)}`
-      : displayName;
+  // If authenticated, show wallet address only
+  const walletAddress = user?.wallet?.address;
+  const shortAddress = walletAddress
+    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+    : user?.email?.address || "Connected";
 
   return (
     <DropdownMenu>
@@ -97,22 +94,19 @@ export function PrivyConnectButton() {
         <Button
           variant="outline"
           size="sm"
-          className="bg-background border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
+          className="bg-background/80 backdrop-blur-md border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors cursor-pointer"
         >
-          <Avatar className="h-5 w-5 mr-2">
-            <AvatarFallback className="text-xs">
-              {displayName.slice(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
           <span className="max-w-[120px] truncate">{shortAddress}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Connected</p>
+            <p className="text-sm font-medium leading-none">
+              {walletAddress ? "Wallet Connected" : "Connected"}
+            </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {displayName}
+              {walletAddress || user?.email?.address || "Unknown"}
             </p>
           </div>
         </DropdownMenuLabel>

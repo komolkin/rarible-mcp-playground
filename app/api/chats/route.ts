@@ -4,10 +4,13 @@ import { checkBotId } from "botid/server";
 
 export async function GET(request: Request) {
   try {
-    const userId = request.headers.get('x-user-id');
+    const userId = request.headers.get("x-user-id");
 
     if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
     }
 
     const chats = await getChats(userId);
@@ -19,4 +22,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
