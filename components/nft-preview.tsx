@@ -64,6 +64,8 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   const [imageError, setImageError] = useState(false);
   const [isProcessingPurchase, setIsProcessingPurchase] = useState(false);
   const [dominantColor, setDominantColor] = useState<string>("");
+  const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const imageRef = useRef<HTMLImageElement>(null);
   const { authenticated, user } = usePrivy();
@@ -134,6 +136,39 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     }
   }, [imageLoaded]);
 
+  // Smart fallback system for IPFS images
+  const getImageUrlWithFallback = (
+    url: string | undefined,
+    gatewayIndex: number = 0
+  ) => {
+    if (!url) return null;
+
+    // Handle non-IPFS URLs normally
+    if (!url.startsWith("ipfs://") && !url.includes("/ipfs/")) {
+      return getImageUrl(url);
+    }
+
+    // Extract IPFS hash
+    let hash = "";
+    if (url.startsWith("ipfs://")) {
+      hash = url.replace("ipfs://", "");
+    } else if (url.includes("/ipfs/")) {
+      const parts = url.split("/ipfs/");
+      hash = parts[1].split(/[?#\)\]\}]/)[0];
+    }
+
+    if (hash && IPFS_GATEWAYS[gatewayIndex]) {
+      const gatewayUrl = IPFS_GATEWAYS[gatewayIndex] + hash;
+      console.log(
+        `🔄 Using gateway ${gatewayIndex + 1}/${IPFS_GATEWAYS.length}:`,
+        gatewayUrl
+      );
+      return gatewayUrl;
+    }
+
+    return getImageUrl(url);
+  };
+
   const handleImageLoad = () => {
     console.log("✅ Image loaded successfully:", {
       nftId: nft.id,
@@ -157,12 +192,14 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   };
 
   const handleImageError = (event: any) => {
-    const imageUrl = getImageUrl(nft.image);
+    const currentUrl = getImageUrlWithFallback(nft.image, currentGatewayIndex);
 
     console.error("💥 Image failed to load:", {
       nftId: nft.id,
       originalUrl: nft.image,
-      processedUrl: imageUrl,
+      currentUrl: currentUrl,
+      gatewayIndex: currentGatewayIndex,
+      gatewayUsed: IPFS_GATEWAYS[currentGatewayIndex],
       imageType: nft.image?.includes("googleusercontent.com")
         ? "Google Cloud"
         : nft.image?.startsWith("data:")
@@ -177,15 +214,32 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       timestamp: new Date().toISOString(),
       errorEvent: event?.type || "unknown",
       errorTarget: event?.target?.src || "unknown",
-      nextConfigCheck: imageUrl?.includes("googleusercontent.com")
-        ? "Google Cloud - should be allowed in next.config.ts"
-        : imageUrl?.includes("ipfs.raribleuserdata.com")
-        ? "Rarible IPFS - should be allowed in next.config.ts"
-        : "Check if domain is in next.config.ts remotePatterns",
     });
 
-    setImageLoaded(false);
-    setImageError(true);
+    // Try next gateway if available and it's an IPFS image
+    if (
+      currentGatewayIndex < IPFS_GATEWAYS.length - 1 &&
+      (nft.image?.includes("ipfs") || nft.image?.startsWith("ipfs://"))
+    ) {
+      console.log(
+        `🔄 Trying next gateway (${currentGatewayIndex + 2}/${
+          IPFS_GATEWAYS.length
+        })...`
+      );
+      setCurrentGatewayIndex((prev) => prev + 1);
+      setIsRetrying(true);
+      setImageError(false);
+      setImageLoaded(false);
+
+      // Reset retry flag after a short delay
+      setTimeout(() => setIsRetrying(false), 1000);
+    } else {
+      console.error(
+        "❌ All gateways failed or not an IPFS image, showing error state"
+      );
+      setImageError(true);
+      setImageLoaded(false);
+    }
   };
 
   // Reset image state when NFT image URL changes
@@ -282,7 +336,15 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     }
   };
 
-  // Process IPFS URLs using Rarible gateway
+  // IPFS Gateway fallback system for faster loading
+  const IPFS_GATEWAYS = [
+    "https://ipfs.raribleuserdata.com/ipfs/", // Primary (Rarible)
+    "https://cloudflare-ipfs.com/ipfs/", // Fast CDN
+    "https://ipfs.io/ipfs/", // Official
+    "https://gateway.pinata.cloud/ipfs/", // Pinata
+    "https://dweb.link/ipfs/", // Protocol Labs
+  ];
+
   const getImageUrl = (url: string | undefined) => {
     if (!url) return null;
 
@@ -303,23 +365,26 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       return url;
     }
 
-    // If it's already a Rarible IPFS gateway URL, use it directly
-    if (url.includes("ipfs.raribleuserdata.com")) {
-      console.log("✅ Already Rarible gateway URL");
+    // If it's already an IPFS gateway URL, use it directly
+    if (
+      url.includes("/ipfs/") &&
+      (url.startsWith("http://") || url.startsWith("https://"))
+    ) {
+      console.log("✅ Already IPFS gateway URL");
       return url;
     }
 
-    // Convert IPFS URLs to Rarible gateway
+    // Convert IPFS URLs to fastest gateway (Cloudflare)
     if (url.startsWith("ipfs://")) {
       const hash = url.replace("ipfs://", "");
-      const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hash}`;
-      console.log("🔄 Converting ipfs:// to Rarible gateway:", {
+      const cloudflareUrl = `https://cloudflare-ipfs.com/ipfs/${hash}`;
+      console.log("🔄 Converting ipfs:// to Cloudflare gateway:", {
         original: url,
         hash: hash,
-        converted: raribleUrl,
+        converted: cloudflareUrl,
         hashLength: hash.length,
       });
-      return raribleUrl;
+      return cloudflareUrl;
     }
 
     // Extract hash from other IPFS patterns and use Rarible gateway
@@ -377,7 +442,7 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     return url;
   };
 
-  const imageUrl = getImageUrl(nft.image);
+  const imageUrl = getImageUrlWithFallback(nft.image, currentGatewayIndex);
 
   // Debug image processing with enhanced IPFS debugging
   console.log("🔍 NFT image processing:", {
@@ -464,9 +529,16 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
             </>
           )}
 
-          {/* Show blinking skeleton when not loaded or on error */}
-          {(!imageLoaded || (imageError && !imageUrl)) && (
-            <div className="absolute inset-0 w-full h-full bg-white/10 animate-pulse rounded-lg" />
+          {/* Show blinking skeleton when not loaded, on error, or retrying */}
+          {(!imageLoaded || (imageError && !imageUrl) || isRetrying) && (
+            <div className="absolute inset-0 w-full h-full bg-white/10 animate-pulse rounded-lg flex items-center justify-center">
+              {isRetrying && (
+                <div className="text-xs text-muted-foreground bg-black/50 px-2 py-1 rounded">
+                  Trying gateway {currentGatewayIndex + 1}/
+                  {IPFS_GATEWAYS.length}...
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -534,6 +606,25 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
                   +{nft.traits.length - 6} more
                 </Badge>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Current Owner */}
+        {nft.owner && (
+          <div className="space-y-2 mt-4">
+            <h4 className="text-sm font-medium">Current Owner</h4>
+            <div className="flex items-center gap-2">
+              <a
+                href={`https://rarible.com/ethereum/profiles/ethereum/${nft.owner}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer font-mono"
+                title="View owner profile on Rarible"
+              >
+                {nft.owner.slice(0, 6)}...{nft.owner.slice(-4)}
+              </a>
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
             </div>
           </div>
         )}
@@ -766,8 +857,36 @@ export function extractNFTDataFromToolResult(toolResult: any): NFTData | null {
       };
     }
 
-    // Extract owner info
-    nftData.owner = data.owner || data.owner_address || data.owners?.[0];
+    // Extract owner info with comprehensive field mapping
+    nftData.owner =
+      data.owner ||
+      data.owner_address ||
+      data.ownerAddress ||
+      data.current_owner ||
+      data.currentOwner ||
+      data.owners?.[0] ||
+      data.ownership?.owner ||
+      actualData.owner ||
+      actualData.owner_address ||
+      actualData.ownerAddress ||
+      actualData.current_owner ||
+      actualData.currentOwner ||
+      actualData.owners?.[0] ||
+      actualData.ownership?.owner;
+
+    // Debug owner extraction
+    console.log("🔍 Owner extraction debug:", {
+      foundOwner: !!nftData.owner,
+      ownerValue: nftData.owner,
+      checkedFields: {
+        "data.owner": data.owner,
+        "data.owner_address": data.owner_address,
+        "data.ownerAddress": data.ownerAddress,
+        "actualData.owner": actualData.owner,
+        "actualData.owner_address": actualData.owner_address,
+        "actualData.ownerAddress": actualData.ownerAddress,
+      },
+    });
 
     // Be more lenient - render card if we have any identifying information
     if (!nftData.id && !nftData.name && !nftData.tokenId && !nftData.contract) {

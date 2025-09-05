@@ -54,6 +54,16 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "**.cf-ipfs.com",
       },
+      {
+        protocol: "https",
+        hostname: "cloudflare-ipfs.com",
+        pathname: "/ipfs/**",
+      },
+      {
+        protocol: "https",
+        hostname: "dweb.link",
+        pathname: "/ipfs/**",
+      },
     ],
   },
   async headers() {

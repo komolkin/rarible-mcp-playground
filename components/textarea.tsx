@@ -33,6 +33,13 @@ const PROMPT_SHORTCUTS = [
       return `Show me metadata for Doodles #${randomId} NFT`;
     },
   },
+  {
+    label: "Random Azuki NFT",
+    prompt: () => {
+      const randomId = Math.floor(Math.random() * 10000) + 1;
+      return `Show me metadata for Azuki #${randomId} NFT`;
+    },
+  },
 ];
 
 export const Textarea = ({
@@ -60,7 +67,7 @@ export const Textarea = ({
     <div className="relative w-full">
       <div className="relative">
         <ShadcnTextarea
-          className="resize-none bg-background/50 dark:bg-muted/50 backdrop-blur-sm w-full rounded-2xl pr-12 pt-4 pb-16 border-input focus-visible:ring-ring placeholder:text-muted-foreground"
+          className="resize-none bg-background/50 dark:bg-muted/50 backdrop-blur-sm w-full rounded-2xl pr-12 pt-4 pb-16 border-white/10 hover:border-white/20 focus-visible:ring-ring placeholder:text-muted-foreground transition-colors"
           value={input}
           autoFocus
           placeholder="Ask anything NFT related..."

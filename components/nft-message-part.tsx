@@ -160,8 +160,43 @@ export function NFTMessagePart({
         });
 
         if (extractedNFTs.length > 0) {
-          console.log(`🎯 Setting ${extractedNFTs.length} NFT(s) for display`);
-          setNFTs(extractedNFTs);
+          // Enhance tool-extracted NFTs with owner info from content if missing
+          const enhancedNFTs = extractedNFTs.map((nft) => {
+            if (!nft.owner) {
+              console.log(
+                "🔍 Tool-extracted NFT missing owner, checking content..."
+              );
+
+              // Extract owner from content using same patterns
+              const ownerPatterns = [
+                /(?:owner|owned by|current owner)[:\s]*(0x[a-fA-F0-9]{40})/i,
+                /(?:owner|owned by|current owner)[:\s]*([a-fA-F0-9]{40})/i,
+                /ownership[:\s]*(0x[a-fA-F0-9]{40})/i,
+                /(0x[a-fA-F0-9]{40}).*(?:owner|owns)/i,
+              ];
+
+              for (const pattern of ownerPatterns) {
+                const match = content.match(pattern);
+                if (match && match[1]) {
+                  let cleanAddress = match[1].toLowerCase();
+                  if (!cleanAddress.startsWith("0x")) {
+                    cleanAddress = `0x${cleanAddress}`;
+                  }
+                  console.log(
+                    "✅ Enhanced NFT with owner from content:",
+                    cleanAddress
+                  );
+                  return { ...nft, owner: cleanAddress };
+                }
+              }
+            }
+            return nft;
+          });
+
+          console.log(
+            `🎯 Setting ${enhancedNFTs.length} enhanced NFT(s) for display`
+          );
+          setNFTs(enhancedNFTs);
           return; // Exit early if we found NFT data from tools
         } else {
           console.log(
@@ -400,6 +435,49 @@ export function NFTMessagePart({
           }
         }
 
+        // Extract owner information from content
+        let ownerAddress = null;
+
+        // Look for owner/ownership patterns in the content
+        console.log(
+          "🔍 Searching for owner in content:",
+          content.substring(0, 500) + "..."
+        );
+
+        const ownerPatterns = [
+          /(?:owner|owned by|current owner)[:\s]*(0x[a-fA-F0-9]{40})/i,
+          /(?:owner|owned by|current owner)[:\s]*([a-fA-F0-9]{40})/i,
+          /ownership[:\s]*(0x[a-fA-F0-9]{40})/i,
+          /(0x[a-fA-F0-9]{40}).*(?:owner|owns)/i,
+          // Additional patterns - fixed to avoid capturing extra 'x'
+          /owner.*?(0x[a-fA-F0-9]{40})/i,
+          /(0x[a-fA-F0-9]{40}).*?owner/i,
+          // Look for any Ethereum address
+          /(0x[a-fA-F0-9]{40})/i,
+        ];
+
+        for (let i = 0; i < ownerPatterns.length; i++) {
+          const pattern = ownerPatterns[i];
+          const match = content.match(pattern);
+          console.log(
+            `🔍 Pattern ${i + 1} result:`,
+            match ? `Found: ${match[1]}` : "No match"
+          );
+
+          if (match && match[1]) {
+            // Clean the address and ensure proper format
+            let cleanAddress = match[1].toLowerCase();
+            if (!cleanAddress.startsWith("0x")) {
+              cleanAddress = `0x${cleanAddress}`;
+            }
+            ownerAddress = cleanAddress;
+            console.log("✅ Found owner address:", ownerAddress);
+            break;
+          }
+        }
+
+        console.log("🔍 Final owner address:", ownerAddress);
+
         const nftItem: NFTData = {
           id: extractedNftId,
           name: extractedName || "Unknown NFT",
@@ -426,6 +504,7 @@ export function NFTMessagePart({
           tokenId: tokenMatch?.[1] || "unknown",
           contract: contractMatch?.[1] || "unknown",
           traits: traits.length > 0 ? traits : undefined,
+          owner: ownerAddress, // Add extracted owner address
           marketplace: {
             name: "Rarible",
             url: `https://rarible.com/ethereum/items/${
