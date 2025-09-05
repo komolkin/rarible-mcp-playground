@@ -52,6 +52,7 @@ You can use any MCP-compatible server with this application. Here are some examp
 - [Composio](https://composio.dev/mcp) - Provides search, code interpreter, and other tools
 - [Zapier MCP](https://zapier.com/mcp) - Provides access to Zapier tools
 - [Hugging Face MCP](https://huggingface.co/mcp) - Provides tool access to Hugging Face Hub
+- [Rarible MCP](https://github.com/rarible/protocol-mcp) - Provides access to Rarible NFT marketplace tools and data
 - Any MCP server compatible with HTTP or SSE transport
 
 ## License
