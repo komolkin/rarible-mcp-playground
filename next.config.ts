@@ -64,6 +64,26 @@ const nextConfig: NextConfig = {
         hostname: "dweb.link",
         pathname: "/ipfs/**",
       },
+      {
+        protocol: "https",
+        hostname: "cf-ipfs.com",
+        pathname: "/ipfs/**",
+      },
+      {
+        protocol: "https",
+        hostname: "gateway.ipfs.io",
+        pathname: "/ipfs/**",
+      },
+      {
+        protocol: "https",
+        hostname: "ipfs.infura.io",
+        pathname: "/ipfs/**",
+      },
+      {
+        protocol: "https",
+        hostname: "hardbin.com",
+        pathname: "/ipfs/**",
+      },
     ],
   },
   async headers() {

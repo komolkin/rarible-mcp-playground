@@ -66,6 +66,8 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   const [dominantColor, setDominantColor] = useState<string>("");
   const [currentGatewayIndex, setCurrentGatewayIndex] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [imageTimeout, setImageTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const imageRef = useRef<HTMLImageElement>(null);
   const { authenticated, user } = usePrivy();
@@ -191,6 +193,28 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     }
   };
 
+  // Clear any existing timeout when component unmounts or image changes
+  useEffect(() => {
+    return () => {
+      if (imageTimeout) {
+        clearTimeout(imageTimeout);
+      }
+    };
+  }, [imageTimeout]);
+
+  // Reset retry state when NFT changes
+  useEffect(() => {
+    setCurrentGatewayIndex(0);
+    setRetryCount(0);
+    setImageError(false);
+    setImageLoaded(false);
+    setIsRetrying(false);
+    if (imageTimeout) {
+      clearTimeout(imageTimeout);
+    }
+  }, [nft.id, nft.image]);
+
+  // Aggressive retry with timeout system
   const handleImageError = (event: any) => {
     const currentUrl = getImageUrlWithFallback(nft.image, currentGatewayIndex);
 
@@ -200,45 +224,56 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       currentUrl: currentUrl,
       gatewayIndex: currentGatewayIndex,
       gatewayUsed: IPFS_GATEWAYS[currentGatewayIndex],
-      imageType: nft.image?.includes("googleusercontent.com")
-        ? "Google Cloud"
-        : nft.image?.startsWith("data:")
-        ? "Data URI"
-        : nft.image?.startsWith("http")
-        ? "HTTP URL"
-        : nft.image?.startsWith("ipfs://")
-        ? "IPFS Protocol"
-        : nft.image?.includes("/ipfs/")
-        ? "IPFS Gateway"
-        : "Unknown",
+      retryCount: retryCount,
+      totalGateways: IPFS_GATEWAYS.length,
       timestamp: new Date().toISOString(),
-      errorEvent: event?.type || "unknown",
-      errorTarget: event?.target?.src || "unknown",
     });
 
-    // Try next gateway if available and it's an IPFS image
-    if (
-      currentGatewayIndex < IPFS_GATEWAYS.length - 1 &&
-      (nft.image?.includes("ipfs") || nft.image?.startsWith("ipfs://"))
-    ) {
+    // Clear any existing timeout
+    if (imageTimeout) {
+      clearTimeout(imageTimeout);
+    }
+
+    // Try next gateway if available
+    if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
       console.log(
-        `🔄 Trying next gateway (${currentGatewayIndex + 2}/${
+        `🔄 Trying gateway ${currentGatewayIndex + 2}/${
           IPFS_GATEWAYS.length
-        })...`
+        } (${IPFS_GATEWAYS[currentGatewayIndex + 1]})`
       );
+
       setCurrentGatewayIndex((prev) => prev + 1);
+      setRetryCount((prev) => prev + 1);
       setIsRetrying(true);
       setImageError(false);
       setImageLoaded(false);
 
+      // Set timeout for this gateway attempt (5 seconds)
+      const timeout = setTimeout(() => {
+        console.log(
+          `⏰ Gateway ${
+            currentGatewayIndex + 1
+          } timed out, forcing next gateway`
+        );
+        if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
+          setCurrentGatewayIndex((prev) => prev + 1);
+        } else {
+          setImageError(true);
+          setIsRetrying(false);
+        }
+      }, 5000);
+
+      setImageTimeout(timeout);
+
       // Reset retry flag after a short delay
-      setTimeout(() => setIsRetrying(false), 1000);
+      setTimeout(() => setIsRetrying(false), 1500);
     } else {
       console.error(
-        "❌ All gateways failed or not an IPFS image, showing error state"
+        `❌ All ${IPFS_GATEWAYS.length} gateways failed after ${retryCount} retries`
       );
       setImageError(true);
       setImageLoaded(false);
+      setIsRetrying(false);
     }
   };
 
@@ -336,13 +371,16 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     }
   };
 
-  // IPFS Gateway fallback system for faster loading
+  // Production-ready IPFS Gateway fallback system
   const IPFS_GATEWAYS = [
     "https://ipfs.raribleuserdata.com/ipfs/", // Primary (Rarible)
-    "https://cloudflare-ipfs.com/ipfs/", // Fast CDN
-    "https://ipfs.io/ipfs/", // Official
-    "https://gateway.pinata.cloud/ipfs/", // Pinata
+    "https://ipfs.io/ipfs/", // Official IPFS
+    "https://gateway.pinata.cloud/ipfs/", // Pinata (reliable)
     "https://dweb.link/ipfs/", // Protocol Labs
+    "https://cf-ipfs.com/ipfs/", // Cloudflare alternative
+    "https://gateway.ipfs.io/ipfs/", // Alternative official
+    "https://ipfs.infura.io/ipfs/", // Infura gateway
+    "https://hardbin.com/ipfs/", // Alternative gateway
   ];
 
   const getImageUrl = (url: string | undefined) => {
@@ -374,17 +412,17 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
       return url;
     }
 
-    // Convert IPFS URLs to fastest gateway (Cloudflare)
+    // Convert IPFS URLs to Rarible gateway (most reliable)
     if (url.startsWith("ipfs://")) {
       const hash = url.replace("ipfs://", "");
-      const cloudflareUrl = `https://cloudflare-ipfs.com/ipfs/${hash}`;
-      console.log("🔄 Converting ipfs:// to Cloudflare gateway:", {
+      const raribleUrl = `https://ipfs.raribleuserdata.com/ipfs/${hash}`;
+      console.log("🔄 Converting ipfs:// to Rarible gateway:", {
         original: url,
         hash: hash,
-        converted: cloudflareUrl,
+        converted: raribleUrl,
         hashLength: hash.length,
       });
-      return cloudflareUrl;
+      return raribleUrl;
     }
 
     // Extract hash from other IPFS patterns and use Rarible gateway
