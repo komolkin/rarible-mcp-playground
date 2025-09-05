@@ -217,10 +217,7 @@ const components: Partial<Components> = {
     </div>
   ),
   thead: ({ node, children, ...props }) => (
-    <thead
-      className="bg-zinc-50 dark:bg-zinc-800/50"
-      {...props}
-    >
+    <thead className="bg-zinc-50 dark:bg-zinc-800/50" {...props}>
       {children}
     </thead>
   ),
@@ -254,10 +251,7 @@ const components: Partial<Components> = {
     </td>
   ),
   hr: ({ node, ...props }) => (
-    <hr
-      className="my-1.5 border-zinc-200 dark:border-zinc-700"
-      {...props}
-    />
+    <hr className="my-1.5 border-zinc-200 dark:border-zinc-700" {...props} />
   ),
 };
 

@@ -61,7 +61,7 @@ export function PrivyConnectButton() {
               disabled={isConnecting}
               variant="outline"
               size="sm"
-              className="bg-background/80 backdrop-blur-md border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors"
+              className="bg-background/80 backdrop-blur-md border-border hover:bg-muted/50 text-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               {isConnecting ? (
                 <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
