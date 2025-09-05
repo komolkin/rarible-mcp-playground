@@ -13,10 +13,6 @@ interface InputProps {
 
 // Prompt shortcuts for new chat screen
 const PROMPT_SHORTCUTS = [
-  {
-    label: "Doodles #7654 NFT",
-    prompt: "Show me metadata for Doodles #7654 NFT",
-  },
   { label: "How can you help?", prompt: "How can you help me with NFTs?" },
   {
     label: "BAYC floor price",
