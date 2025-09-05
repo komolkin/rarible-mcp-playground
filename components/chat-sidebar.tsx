@@ -2,17 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import {
-  MessageSquare,
-  PlusCircle,
-  Trash2,
-  ServerIcon,
-  Settings,
-  Sparkles,
-  ChevronsUpDown,
-  Copy,
-  Pencil,
-} from "lucide-react";
+import { MessageSquare, PlusCircle, Trash2, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -38,16 +28,6 @@ import { useWalletUser } from "@/lib/hooks/use-wallet-user";
 import { updateUserId } from "@/lib/user-id";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -169,20 +149,24 @@ export function ChatSidebar() {
     >
       <SidebarHeader className="p-4 border-b border-border/40">
         <div className="flex items-center justify-start">
-          <div
-            className={`flex items-center ${
+          <button
+            onClick={handleNewChat}
+            className={`flex items-center cursor-pointer hover:bg-muted/50 rounded-lg p-2 transition-colors ${
               isCollapsed ? "justify-center w-full" : ""
             }`}
+            title={isCollapsed ? "New Chat" : "Start new conversation"}
           >
             {!isCollapsed && (
-              <div className="font-semibold text-lg text-foreground/90">
+              <div className="font-semibold text-lg text-foreground/90 hover:text-foreground">
                 rAIrible
               </div>
             )}
             {isCollapsed && (
-              <div className="font-semibold text-sm text-foreground/90">R</div>
+              <div className="font-semibold text-sm text-foreground/90 hover:text-foreground">
+                R
+              </div>
             )}
-          </div>
+          </button>
         </div>
       </SidebarHeader>
 
@@ -296,63 +280,6 @@ export function ChatSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <div className="relative my-0">
-          <div className="absolute inset-x-0">
-            <Separator className="w-full h-px bg-border/40" />
-          </div>
-        </div>
-
-        <SidebarGroup className="flex-shrink-0">
-          <SidebarGroupLabel
-            className={cn(
-              "px-4 pt-0 text-xs font-medium text-muted-foreground/80 uppercase tracking-wider",
-              isCollapsed ? "sr-only" : ""
-            )}
-          >
-            MCP Servers
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => setMcpSettingsOpen(true)}
-                  className={cn(
-                    "w-full flex items-center gap-2 transition-all",
-                    "hover:bg-secondary/50 active:bg-secondary/70"
-                  )}
-                  tooltip={isCollapsed ? "MCP Servers" : undefined}
-                >
-                  <ServerIcon
-                    className={cn(
-                      "h-4 w-4 flex-shrink-0",
-                      activeServersCount > 0
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                    )}
-                  />
-                  {!isCollapsed && (
-                    <span className="flex-grow text-sm text-foreground/80">
-                      MCP Servers
-                    </span>
-                  )}
-                  {activeServersCount > 0 && !isCollapsed ? (
-                    <Badge
-                      variant="secondary"
-                      className="ml-auto text-[10px] px-1.5 py-0 h-5 bg-secondary/80"
-                    >
-                      {activeServersCount}
-                    </Badge>
-                  ) : activeServersCount > 0 && isCollapsed ? (
-                    <SidebarMenuBadge className="bg-secondary/80 text-secondary-foreground">
-                      {activeServersCount}
-                    </SidebarMenuBadge>
-                  ) : null}
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-border/40 mt-auto">
@@ -363,146 +290,30 @@ export function ChatSidebar() {
             <Button
               variant="default"
               className={cn(
-                "w-full bg-primary text-primary-foreground hover:bg-primary/90",
+                "w-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer",
                 isCollapsed ? "w-8 h-8 p-0" : ""
               )}
               onClick={handleNewChat}
               title={isCollapsed ? "New Chat" : undefined}
             >
-              <PlusCircle className={`${isCollapsed ? "" : "mr-2"} h-4 w-4`} />
+              <PlusCircle className={`${isCollapsed ? "" : "mr-1"} h-4 w-4`} />
               {!isCollapsed && <span>New Chat</span>}
             </Button>
           </motion.div>
 
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              {isCollapsed ? (
-                <Button
-                  variant="ghost"
-                  className="w-8 h-8 p-0 flex items-center justify-center"
-                >
-                  <Avatar className="h-6 w-6 rounded-lg bg-secondary/60">
-                    <AvatarFallback className="rounded-lg text-xs font-medium text-secondary-foreground">
-                      {userId.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="w-full justify-between font-normal bg-transparent border border-border/60 shadow-none px-2 h-10 hover:bg-secondary/50"
-                >
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-7 w-7 rounded-lg bg-secondary/60">
-                      <AvatarFallback className="rounded-lg text-sm font-medium text-secondary-foreground">
-                        {userId.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="grid text-left text-sm leading-tight">
-                      <span className="truncate font-medium text-foreground/90">
-                        {walletUser.type === "wallet"
-                          ? walletUser.walletAddress
-                            ? "Wallet"
-                            : "Email"
-                          : "User ID"}
-                      </span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {walletUser.type === "wallet" && walletUser.isConnected
-                          ? walletUser.walletAddress
-                            ? `${walletUser.walletAddress.substring(
-                                0,
-                                6
-                              )}...${walletUser.walletAddress.substring(38)}`
-                            : walletUser.email
-                          : `${userId.substring(0, 16)}...`}
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              )}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-56 rounded-lg"
-              side={isCollapsed ? "top" : "top"}
-              align={isCollapsed ? "start" : "end"}
-              sideOffset={8}
-            >
-              <DropdownMenuLabel className="p-0 font-normal">
-                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-lg bg-secondary/60">
-                    <AvatarFallback className="rounded-lg text-sm font-medium text-secondary-foreground">
-                      {userId.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold text-foreground/90">
-                      {walletUser.type === "wallet"
-                        ? walletUser.walletAddress
-                          ? "Wallet Address"
-                          : "Email"
-                        : "User ID"}
-                      {walletUser.isConnected && (
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          Connected
-                        </Badge>
-                      )}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {userId}
-                    </span>
-                  </div>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    navigator.clipboard.writeText(userId);
-                    const label =
-                      walletUser.type === "wallet"
-                        ? walletUser.walletAddress
-                          ? "Wallet address"
-                          : "Email"
-                        : "User ID";
-                    toast.success(`${label} copied to clipboard`);
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  {walletUser.type === "wallet" && walletUser.walletAddress
-                    ? "Copy address"
-                    : walletUser.type === "wallet" && walletUser.email
-                    ? "Copy email"
-                    : "Copy User ID"}
-                </DropdownMenuItem>
-                {walletUser.type !== "wallet" && (
-                  <DropdownMenuItem
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      setEditUserIdOpen(true);
-                      setNewUserId(userId);
-                    }}
-                  >
-                    <Pencil className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                    Edit User ID
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setMcpSettingsOpen(true);
-                  }}
-                >
-                  <Settings className="mr-2 h-4 w-4 hover:text-sidebar-accent" />
-                  MCP Settings
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* MCP Settings button */}
+          <Button
+            onClick={() => setMcpSettingsOpen(true)}
+            variant="outline"
+            className={cn(
+              "w-full transition-colors hover:bg-muted/50 hover:text-foreground cursor-pointer",
+              isCollapsed ? "w-8 h-8 p-0" : ""
+            )}
+            title={isCollapsed ? "MCP Settings" : undefined}
+          >
+            <Settings className={`${isCollapsed ? "" : "mr-1"} h-4 w-4`} />
+            {!isCollapsed && <span>MCP Settings</span>}
+          </Button>
         </div>
 
         <MCPServerManager

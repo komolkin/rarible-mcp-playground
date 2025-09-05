@@ -629,10 +629,7 @@ export const MCPServerManager = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px] max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ServerIcon className="h-5 w-5 text-primary" />
-            MCP Server Configuration
-          </DialogTitle>
+          <DialogTitle>MCP Server Configuration</DialogTitle>
           <DialogDescription>
             Connect to Model Context Protocol servers to access additional AI
             tools.
@@ -652,9 +649,6 @@ export const MCPServerManager = ({
                 <div className="flex-1 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-medium">Available Servers</h3>
-                    <span className="text-xs text-muted-foreground">
-                      Select multiple servers to combine their tools
-                    </span>
                   </div>
                   <div className="overflow-y-auto pr-1 flex-1 gap-2.5 flex flex-col pb-16">
                     {servers

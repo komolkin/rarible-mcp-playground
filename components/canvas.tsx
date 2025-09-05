@@ -42,11 +42,11 @@ export function Canvas() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b bg-background">
-        <div className="text-sm font-medium">NFT Preview</div>
+      <div className="p-4 bg-background">
+        <div className="text-sm font-medium">Canvas</div>
         <div className="text-xs text-muted-foreground">
           {nfts.length === 0
-            ? 'Try asking about an NFT like "Doodles #2336"'
+            ? ""
             : `${nfts.length} item${nfts.length !== 1 ? "s" : ""}`}
         </div>
       </div>
@@ -54,9 +54,8 @@ export function Canvas() {
       <div className="flex-1 overflow-auto">
         {nfts.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground p-4">
-            <div className="text-center space-y-2">
-              <p>No NFTs to display</p>
-              <p className="text-sm">Ask about any NFT to see it here</p>
+            <div className="text-center">
+              <p>Nothing to display</p>
             </div>
           </div>
         ) : (
