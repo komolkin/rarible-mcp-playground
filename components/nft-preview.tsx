@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import ColorThief from "colorthief";
 import {
   Card,
   CardContent,
@@ -62,8 +63,55 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [isProcessingPurchase, setIsProcessingPurchase] = useState(false);
+  const [dominantColor, setDominantColor] = useState<string>("");
 
+  const imageRef = useRef<HTMLImageElement>(null);
   const { authenticated, user } = usePrivy();
+
+  // Function to extract dominant color from image
+  const extractDominantColor = () => {
+    if (imageRef.current && imageLoaded && imageRef.current.complete) {
+      try {
+        const colorThief = new ColorThief();
+        // Use quality parameter for better performance (sample every 10th pixel)
+        const color = colorThief.getColor(imageRef.current, 10);
+
+        // Make colors brighter by increasing saturation and reducing transparency
+        const [r, g, b] = color;
+        const enhancedR = Math.min(255, Math.round(r * 1.1)); // Boost by 10%
+        const enhancedG = Math.min(255, Math.round(g * 1.1));
+        const enhancedB = Math.min(255, Math.round(b * 1.1));
+
+        const rgbColor = `rgb(${enhancedR}, ${enhancedG}, ${enhancedB})`;
+        const rgbaColor = `rgba(${enhancedR}, ${enhancedG}, ${enhancedB}, 0.25)`; // Increased opacity from 0.15 to 0.25
+        setDominantColor(rgbaColor);
+        console.log(
+          "🎨 Extracted dominant color:",
+          rgbColor,
+          "from image:",
+          imageRef.current.src
+        );
+      } catch (error) {
+        console.error("Failed to extract color:", error);
+        console.error("This might be due to CORS issues with external images");
+
+        // Check if it's a CORS error
+        if (error instanceof Error && error.message.includes("tainted")) {
+          console.error(
+            "Canvas tainted by cross-origin data. Image needs proper CORS headers."
+          );
+        }
+
+        setDominantColor("rgba(30, 30, 30, 0.15)"); // Fallback color
+      }
+    } else {
+      console.warn("Image not ready for color extraction:", {
+        hasRef: !!imageRef.current,
+        imageLoaded,
+        complete: imageRef.current?.complete,
+      });
+    }
+  };
 
   // Debug NFT data being passed to component
   useEffect(() => {
@@ -78,6 +126,14 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     });
   }, [nft]);
 
+  // Trigger color extraction when image is loaded
+  useEffect(() => {
+    if (imageLoaded && imageRef.current && imageRef.current.complete) {
+      console.log("🎨 Attempting color extraction via useEffect");
+      extractDominantColor();
+    }
+  }, [imageLoaded]);
+
   const handleImageLoad = () => {
     console.log("✅ Image loaded successfully:", {
       nftId: nft.id,
@@ -87,6 +143,17 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     });
     setImageLoaded(true);
     setImageError(false);
+
+    // Extract dominant color after image loads
+    // According to Color Thief docs, we need to ensure image is complete
+    if (imageRef.current && imageRef.current.complete) {
+      extractDominantColor();
+    } else {
+      // If for some reason it's not complete, try again after a short delay
+      setTimeout(() => {
+        extractDominantColor();
+      }, 100);
+    }
   };
 
   const handleImageError = (event: any) => {
@@ -342,7 +409,13 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
   }
 
   return (
-    <Card className={`w-full max-w-sm mx-auto overflow-hidden ${className}`}>
+    <Card
+      className={`w-full max-w-sm mx-auto overflow-hidden transition-all duration-500 ${className}`}
+      style={{
+        backgroundColor: dominantColor || "transparent",
+        border: dominantColor ? "1px solid rgba(255,255,255,0.1)" : undefined,
+      }}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
@@ -371,17 +444,22 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
           {/* Always try to render image if URL exists */}
           {imageUrl && (
             <>
-              <Image
+              <img
+                ref={imageRef}
                 src={imageUrl}
                 alt={nft.name || "NFT"}
-                fill
-                className={`object-cover transition-opacity duration-300 ${
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
                   imageLoaded ? "opacity-100" : "opacity-0"
                 }`}
                 onLoad={handleImageLoad}
                 onError={handleImageError}
-                sizes="(max-width: 400px) 100vw, 400px"
-                unoptimized={true} // Always disable optimization for external NFT images
+                crossOrigin="anonymous" // Required for ColorThief to work with external images
+                onLoadStart={() =>
+                  console.log(
+                    "🔄 Image load started for:",
+                    imageUrl?.substring(0, 50)
+                  )
+                }
               />
             </>
           )}
@@ -421,7 +499,7 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Current bid</span>
               <div className="text-right">
-                <div className="font-semibold text-blue-600">
+                <div className="font-semibold text-white">
                   {nft.bid.amount} {nft.bid.currency}
                 </div>
                 {nft.bid.usd && (
