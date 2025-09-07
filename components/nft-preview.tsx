@@ -219,14 +219,15 @@ export function NFTPreview({ nft, className = "" }: NFTPreviewProps) {
     const currentUrl = getImageUrlWithFallback(nft.image, currentGatewayIndex);
 
     console.error("💥 Image failed to load:", {
-      nftId: nft.id,
-      originalUrl: nft.image,
-      currentUrl: currentUrl,
-      gatewayIndex: currentGatewayIndex,
-      gatewayUsed: IPFS_GATEWAYS[currentGatewayIndex],
-      retryCount: retryCount,
-      totalGateways: IPFS_GATEWAYS.length,
+      nftId: nft?.id || "no-id",
+      originalUrl: nft?.image || "no-url",
+      currentUrl: currentUrl || "no-current-url",
+      gatewayIndex: currentGatewayIndex || 0,
+      gatewayUsed: IPFS_GATEWAYS?.[currentGatewayIndex] || "no-gateway",
+      retryCount: retryCount || 0,
+      totalGateways: IPFS_GATEWAYS?.length || 0,
       timestamp: new Date().toISOString(),
+      errorEvent: event?.target?.error || event?.error || "unknown-error"
     });
 
     // Clear any existing timeout
